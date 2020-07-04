@@ -1,0 +1,251 @@
+name: build and release skia libraries
+
+on:
+  push:
+    branches:
+      - 'master'
+
+jobs:
+  linux:
+    strategy:
+      matrix:
+        arch: [amd64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+      - uses: actions/setup-go@v2
+      - name: download tash
+        run: |
+          go get github.com/zhuah/tash
+          sudo mv ~/go/bin/tash /usr/bin
+      - name: install skia build toolchain
+        working-directory: skia
+        run: |
+          sudo apt-get install -y ninja-build python build-essential clang
+          python bin/fetch-gn
+          sudo apt-get install -y xorg-dev libgl1-mesa-dev
+      - name: build skia
+        run: tash linux-${{matrix.arch}}
+      - name: save artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: linux-${{matrix.arch}}
+          path: internal/libs/linux-${{matrix.arch}}/
+
+  darwin:
+    strategy:
+      matrix:
+        arch: [amd64]
+    runs-on: macos-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+      - uses: actions/setup-go@v2
+      - name: download tash
+        run: |
+          go get github.com/zhuah/tash
+          sudo mv ~/go/bin/tash /usr/local/bin
+      - name: install skia build toolchain
+        working-directory: skia
+        run: |
+          brew install ninja
+          python bin/fetch-gn
+      - name: build skia
+        run: tash darwin-${{matrix.arch}}
+      - name: save artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: darwin-${{matrix.arch}}
+          path: internal/libs/darwin-${{matrix.arch}}/
+
+  windows-angle:
+    strategy:
+      matrix:
+        arch: [amd64, 386]
+    runs-on: windows-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: install vcpkg
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git --branch master --single-branch vcpkg
+          ./vcpkg/bootstrap-vcpkg.bat
+      - uses: actions/setup-go@v2
+      - name: download tash
+        shell: bash
+        run: |
+          env GOPATH=`pwd`/gopath go get github.com/zhuah/tash
+          mv ./gopath/bin/tash.exe .
+          rm -rf ./gopath
+      - name: build angle with vcpkg
+        env:
+          VCPKG_PATH: ./vcpkg
+        shell: bash
+        run: |
+          ./tash angle-windows-${{matrix.arch}}
+      - name: save artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: angle-windows-${{matrix.arch}}
+          path: internal/libs/angle-windows-${{matrix.arch}}/
+
+  windows:
+    strategy:
+      matrix:
+        arch: [amd64, 386]
+    runs-on: windows-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+      - uses: actions/setup-go@v2
+      - name: download tash
+        shell: bash
+        run: |
+          env GOPATH=`pwd`/gopath go get github.com/zhuah/tash
+          mv ./gopath/bin/tash.exe .
+          rm -rf ./gopath
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '2.7.x'
+      - name: install skia build toolchain
+        shell: bash
+        working-directory: skia
+        run: |
+          python bin/fetch-gn
+          choco install ninja
+          choco install llvm
+          env GIT_SYNC_DEPS_LIST=angle2 python tools/git-sync-deps
+      - name: build skia
+        shell: bash
+        run: |
+          ./tash.exe windows-${{matrix.arch}}
+      - name: save artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: windows-${{matrix.arch}}
+          path: internal/libs/windows-${{matrix.arch}}/
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [linux, darwin, windows, windows-angle]
+    steps:
+      - name: download linux
+        uses: actions/download-artifact@v1
+        with:
+          name: linux-amd64
+      - name: download darwin
+        uses: actions/download-artifact@v1
+        with:
+          name: darwin-amd64
+      - name: download windows
+        uses: actions/download-artifact@v1
+        with:
+          name: windows-amd64
+      - name: download windows
+        uses: actions/download-artifact@v1
+        with:
+          name: windows-386
+      - name: download windows
+        uses: actions/download-artifact@v1
+        with:
+          name: angle-windows-amd64
+      - name: download windows
+        uses: actions/download-artifact@v1
+        with:
+          name: angle-windows-386
+
+      - name: create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Release name can't be the same as tag name, sigh
+          tag_name: build-${{ github.sha }}
+          release_name: ${{ github.sha }}
+          draft: false
+          prerelease: false
+
+      - name: upload linux amd64 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: linux-amd64/libskia.so
+          asset_name: linux-amd64-libskia.so
+          asset_content_type: application/octet-stream
+
+      - name: upload darwin amd64 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: darwin-amd64/libskia.dylib
+          asset_name: darwin-amd64-libskia.dylib
+          asset_content_type: application/octet-stream
+
+      - name: upload windows amd64 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: windows-amd64/libskia.dll
+          asset_name: windows-amd64-libskia.dll
+          asset_content_type: application/octet-stream
+      - name: upload windows amd64 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: angle-windows-amd64/libEGL.dll
+          asset_name: windows-amd64-libEGL.dll
+          asset_content_type: application/octet-stream
+      - name: upload windows amd64 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: angle-windows-amd64/libGLESv2.dll
+          asset_name: windows-amd64-libGLESv2.dll
+          asset_content_type: application/octet-stream
+
+      - name: upload windows 386 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: windows-386/libskia.dll
+          asset_name: windows-386-libskia.dll
+          asset_content_type: application/octet-stream
+      - name: upload windows 386 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: angle-windows-386/libEGL.dll
+          asset_name: windows-386-libEGL.dll
+          asset_content_type: application/octet-stream
+      - name: upload windows 386 library
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: angle-windows-386/libGLESv2.dll
+          asset_name: windows-386-libGLESv2.dll
+          asset_content_type: application/octet-stream

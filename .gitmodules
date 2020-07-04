@@ -1,0 +1,4 @@
+[submodule "skia"]
+	path = skia
+	url = https://github.com/zhuah/skia
+	branch = xamarin-develop

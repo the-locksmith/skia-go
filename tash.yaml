@@ -1,0 +1,189 @@
+envs:
+  - value: >
+      ARGS_COMMON=is_component_build=true
+      is_debug=false
+      is_official_build=true
+      skia_enable_gpu=true
+      skia_enable_pdf=false
+      skia_enable_skottie=false
+      skia_use_expat=false
+      skia_use_icu=false
+      skia_use_piex=false
+      skia_use_sfntly=false
+      skia_use_zlib=false
+      skia_enable_skshaper=false
+      skia_use_dng_sdk=false
+      skia_use_harfbuzz=false
+      skia_use_icu=false
+      skia_use_libjpeg_turbo=false
+      skia_use_libpng=false
+      skia_use_libwebp=false
+      skia_use_libgifcodec=false
+      skia_use_libheif=false
+      skia_use_libjpeg_turbo_decode=false
+      skia_use_libjpeg_turbo_encode=false
+      skia_use_libpng_decode=false
+      skia_use_libpng_encode=false
+      skia_use_libwebp_decode=false
+      skia_use_libwebp_encode=false
+      skia_use_system_expat=false
+      skia_use_system_harfbuzz=false
+      skia_use_system_icu=false
+      skia_use_system_libjpeg_turbo=false
+      skia_use_system_libpng=false
+      skia_use_system_libwebp=false
+      skia_use_system_zlib=false
+      skia_use_xps=false
+  - value: >
+      COMMON_DEFINES="-DSKIA_C_DLL",
+      "-DSK_DISABLE_REDUCE_OPLIST_SPLITTING",
+      "-DSK_DISABLE_AAA",
+      "-DSK_DISABLE_READBUFFER",
+      "-DSK_DISABLE_EFFECT_DESERIALIZATION",
+      "-DSK_DISABLE_LEGACY_SHADERCONTEXT",
+      "-DSK_DISABLE_LOWP_RASTER_PIPELINE",
+      "-DSK_FORCE_RASTER_PIPELINE_BLITTER"
+  - value: |
+      COMMON_DEFINES_MSVC=$COMMON_DEFINES, "-DSK_API="
+      COMMON_DEFINES_CLANG=$COMMON_DEFINES, "-DSK_API=__attribute__((visibility(\\"hidden\\")))"
+  - value: >
+      ARGS_LINUX_COMMON=skia_use_fontconfig=true
+      skia_use_freetype=true
+      skia_use_system_fontconfig=true
+      skia_use_system_freetype=true
+      cc="clang"
+      cxx="clang++"
+      target_os="linux"
+      extra_cflags=[${COMMON_DEFINES_CLANG}]
+  - value: >
+      ARGS_WINDOWS_COMMON=skia_use_angle=true
+      skia_enable_fontmgr_win=true
+      skia_enable_fontmgr_win_gdi=true
+      cc="clang"
+      cxx="clang++"
+      clang_win="C:\\Program Files\\LLVM" target_os="win"
+      extra_cflags=[${COMMON_DEFINES_MSVC}, "/MT", "/EHsc", "/Z7"]
+  - value: >
+      ARGS_DARWIN_COMMON=cc="clang"
+      cxx="clang++"
+      target_os="mac"
+      extra_cflags=[${COMMON_DEFINES_CLANG}]
+  - value: >
+      ARGS_ANDROID_COMMON=cc="clang"
+      cxx="clang++"
+      ndk="${ANDROID_NDK_HOME}"
+      target_os="android"
+      skia_enable_fontmgr_android=true
+      skia_use_system_expat=false
+      skia_use_system_freetype2=false
+      skia_use_system_zlib=true
+      extra_cflags=[${COMMON_DEFINES_CLANG}]
+  - value: >
+      ARGS_IOS_COMMON=cc="clang"
+      cxx="clang++"
+      target_os="ios"
+      extra_cflags=[${COMMON_DEFINES_CLANG}]
+  - value: ARGS_X64=target_cpu="x64"
+  - value: ARGS_X86=target_cpu="x86"
+  - value: ARGS_ARM=target_cpu="arm"
+  - value: ARGS_ARM64=target_cpu="arm64"
+
+templates:
+  angleBuild:
+    - cmd:
+        exec: "${VCPKG_PATH}/vcpkg install angle:${ANGLE_ARCH}-windows"
+    - loop:
+        env: ANGLE_LIB_NAME
+        split:
+          value: libEGL.dll libGLESv2.dll
+        actions:
+          - cmd:
+              exec: ls -lh ${VCPKG_PATH}/installed/**
+          - env:
+              value: ANGLE_LIB_PATH=${VCPKG_PATH}/installed/${ANGLE_ARCH}-windows/bin/$ANGLE_LIB_NAME
+          - condition:
+              value: $ANGLE_LIB_PATH
+              operator: file.regular
+              actions:
+                - copy:
+                    sourceUrl: $ANGLE_LIB_PATH
+                    destPath: internal/libs/${TASK_NAME}/$ANGLE_LIB_NAME
+  skiaBuild:
+    - if:
+        value: $HOST_OS
+        compare: windows
+        ok:
+          - env:
+              value: EXE=.exe
+    - env:
+        value: SKIA_BUILD_DIR=$TASK_NAME
+    - chdir:
+        dir: skia
+        actions:
+          - cmd:
+              exec: bin/gn${EXE} gen out/$SKIA_BUILD_DIR --args='$SKIA_BUILD_ARGS'
+          - cmd:
+              exec: ninja -C out/$SKIA_BUILD_DIR
+    - loop:
+        env: SKIA_LIB_NAME
+        split:
+          value: libskia.a skia.lib libskia.dll libEGL.dll libGLESv2.dll libskia.so libskia.dylib
+        actions:
+          - env:
+              value: SKIA_LIB_PATH=skia/out/$SKIA_BUILD_DIR/$SKIA_LIB_NAME
+          - condition:
+              value: $SKIA_LIB_PATH
+              operator: file.regular
+              actions:
+                - copy:
+                    sourceUrl: $SKIA_LIB_PATH
+                    destPath: internal/libs/$SKIA_BUILD_DIR/$SKIA_LIB_NAME
+tasks:
+  darwin-amd64:
+    actions:
+      - env:
+          value: SKIA_BUILD_ARGS="$ARGS_COMMON $ARGS_DARWIN_COMMON $ARGS_X64"
+      - template: skiaBuild
+
+  linux-amd64:
+    actions:
+      - env:
+          value: SKIA_BUILD_ARGS="$ARGS_COMMON $ARGS_LINUX_COMMON $ARGS_X64"
+      - template: skiaBuild
+
+  windows-amd64:
+    actions:
+      - env:
+          value: SKIA_BUILD_ARGS="$ARGS_COMMON $ARGS_WINDOWS_COMMON $ARGS_X64"
+      - template: skiaBuild
+  windows-386:
+    actions:
+      - env:
+          value: SKIA_BUILD_ARGS="$ARGS_COMMON $ARGS_WINDOWS_COMMON $ARGS_X86"
+      - template: skiaBuild
+  angle-windows-amd64:
+    actions:
+      - env:
+          value: ANGLE_ARCH=x64
+      - template: angleBuild
+  angle-windows-386:
+    actions:
+      - env:
+          value: ANGLE_ARCH=x86
+      - template: angleBuild
+
+
+  cgo-headers:
+    description: |-
+      copy cgo headers for skia
+    actions:
+      - del: internal/include
+      - copy:
+          sourceUrl: skia/include/c
+          destPath: internal/include
+      - chmod:
+          path: internal/include/*.h
+          mode: 0644
+      - replace:
+          file: internal/include/*.h
+          replaces: ["include/c/", ""]
