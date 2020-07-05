@@ -5,7 +5,7 @@ package skia
 */
 import "C"
 import (
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type skVertices = C.sk_vertices_t

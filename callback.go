@@ -14,7 +14,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type SkBitmapReleaseProc func(addr unsafe.Pointer, context interface{})

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type skTextblob = C.sk_textblob_t

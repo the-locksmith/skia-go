@@ -5,7 +5,7 @@ package skia
 */
 import "C"
 import (
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type skPathEffect = C.sk_path_effect_t

@@ -7,7 +7,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type skColorspace = C.sk_colorspace_t

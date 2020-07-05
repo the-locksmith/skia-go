@@ -7,7 +7,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type skMatrix = C.sk_matrix_t

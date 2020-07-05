@@ -6,7 +6,7 @@ package skia
 */
 import "C"
 import (
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type csize_t = C.size_t

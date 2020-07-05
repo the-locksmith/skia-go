@@ -1,4 +1,4 @@
-module github.com/zhuah/skia-go
+module github.com/uiez/skia-go
 
 go 1.14
 

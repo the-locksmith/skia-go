@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/zhuah/skia-go/internal"
+	"github.com/uiez/skia-go/internal"
 )
 
 type skColortable = C.sk_colortable_t
